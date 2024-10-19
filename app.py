@@ -10,6 +10,7 @@ import streamlit as st
 from scipy import stats
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
+import time 
 
 # Load the dataset
 file_path = 'data/Nepali_Trekking_Data.csv'  # Ensure the dataset is in the 'data' folder
@@ -236,3 +237,32 @@ if user_budget:
         st.write("No trekking options available within your budget.")
 else:
     st.write("Please enter a budget to see recommendations.")
+
+#Checking Latency 
+
+# For loading Dataset 
+start_time_data_loading = time.time()
+# End timer for data loading and compute latency
+end_time_data_loading = time.time()
+#calculating latency for loading dataset 
+data_loading_latency = end_time_data_loading - start_time_data_loading
+
+#For Preprocessing steps 
+start_time_preprocessing = time.time()
+end_time_preprocessing = time.time()
+data_preprocessing_latency = end_time_preprocessing - start_time_preprocessing
+
+
+start_time = time.time()  # Start time for training
+model = RandomForestRegressor(n_estimators=100, random_state=42)
+model.fit(X_train, y_train)
+train_time = time.time() - start_time  # Time taken for training
+
+start_time = time.time()  # Start time for predictions
+y_pred = model.predict(X_test)
+predict_time = time.time() - start_time  # Time taken for predictions
+st.write("### Checking Model Latency")
+st.write(f"**Data Loading Latency:** {data_loading_latency:.6f} seconds")
+st.write(f"**Data Preprocessing Latency:** {data_preprocessing_latency:.6f} seconds")
+st.write(f"**Training Latency:** {train_time:.4f} seconds")
+st.write(f"**Prediction Latency:** {predict_time:.4f} seconds")
