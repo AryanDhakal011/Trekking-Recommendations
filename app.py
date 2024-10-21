@@ -3,17 +3,17 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.cluster import KMeans
 import numpy as np
 import streamlit as st
 from scipy import stats
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
-import time 
+import time
 
 # Load the dataset
-file_path = 'data/Nepali_Trekking_Data.csv'  # Ensure the dataset is in the 'data' folder
+file_path = 'data/Nepali_Trekking_Data.csv'  
 trekking_data = pd.read_csv(file_path)
 
 # Display raw dataset (optional)
@@ -23,7 +23,7 @@ st.dataframe(trekking_data)
 
 # Preprocessing: Dropping unnecessary columns
 columns_to_drop = [
-    'Id', 'Time', 'Trip Grade', 'Date of Travel', 'Sex', 'Regional code', 
+    'Id', 'Trip Grade', 'Date of Travel', 'Sex', 'Regional code', 
     'Country', 'Weather Conditions', 'Trekking Group Size', 'Guide/No Guide', 
     'Equipment Used', 'Purpose of Travel', 'Health Incidents', 'Review/Satisfaction',
     'GraduateOrNot', 'FrequentFlyer', 'Employment Type', 'AnnualIncome'
@@ -45,25 +45,13 @@ if 'Max Altitude' in df_cleaned.columns:
 
 # Handling missing values in Fitness Level
 if 'Fitness Level' in df_cleaned.columns:
-    label_enc = LabelEncoder()  # Instantiate the encoder
     df_cleaned['Fitness Level'] = df_cleaned['Fitness Level'].fillna('Beginner')  # Fill NaNs with a placeholder
-    df_cleaned['Fitness Level'] = label_enc.fit_transform(df_cleaned['Fitness Level'])  # Encode first
-
-    # Calculate the mean fitness level index and map back to original categories
-    mean_fitness_level_index = round(df_cleaned['Fitness Level'].mean())
-    mean_fitness_category = label_enc.inverse_transform([mean_fitness_level_index])[0]  # Get the mean category
-    df_cleaned['Fitness Level'] = df_cleaned['Fitness Level'].replace(label_enc.transform(['Beginner'])[0], mean_fitness_category)
-
-    # Replace any remaining NaN values in Fitness Level
-    df_cleaned['Fitness Level'] = df_cleaned['Fitness Level'].replace(np.nan, mean_fitness_category)
+    label_enc = LabelEncoder()  # Instantiate the encoder
+    df_cleaned['Fitness Level'] = label_enc.fit_transform(df_cleaned['Fitness Level'])  # Encode fitness levels
 
 # Clean Accommodation column by removing "Hotel/" prefix
 if 'Accommodation' in df_cleaned.columns:
     df_cleaned['Accommodation'] = df_cleaned['Accommodation'].str.replace('Hotel/', '', regex=False)
-
-# Encoding categorical columns ('Accommodation')
-if 'Accommodation' in df_cleaned.columns:
-    df_cleaned['Accommodation'] = label_enc.fit_transform(df_cleaned['Accommodation'])
 
 # Outlier Handling
 z_scores = np.abs(stats.zscore(df_cleaned[['Cost', 'Max Altitude']].select_dtypes(include=[np.number])))
@@ -92,7 +80,7 @@ st.write("Size of target variable after NaN removal:", y.shape)
 # Ensure all features are numeric
 X = X.select_dtypes(include=[np.number])
 
-# Ensure there are samples left for training/testing
+
 if X.shape[0] == 0 or y.shape[0] == 0:
     st.error("No samples left after cleaning. Please check the data preprocessing steps.")
 else:
@@ -100,11 +88,15 @@ else:
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     # Training the Random Forest Regressor
+    start_time_training = time.time()  
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
+    training_time = time.time() - start_time_training  
 
     # Making predictions
+    start_time_prediction = time.time()  
     y_pred = model.predict(X_test)
+    prediction_time = time.time() - start_time_prediction  
 
     # Evaluating the model
     mae = mean_absolute_error(y_test, y_pred)
@@ -117,9 +109,9 @@ else:
 
 # Display cleaned and scaled dataset
 st.header("Here is the cleaned dataset (for reference):")
-st.dataframe(df_cleaned)
+st.dataframe(trekking_data)
+
 # Linear Regression for Seasonal Demand Fluctuations
-# Select the relevant columns for regression
 X_reg = df_cleaned[['Max Altitude']]
 y_reg = df_cleaned['Cost']
 
@@ -127,7 +119,7 @@ y_reg = df_cleaned['Cost']
 X_reg = X_reg.dropna()
 y_reg = y_reg[X_reg.index]
 
-# Splitting the dataset for regression
+# Splitting the dataset 
 X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
 
 # Training the Linear Regression model
@@ -196,47 +188,80 @@ st.pyplot(plt)
 # Asking user to input k value (based on elbow method)
 optimal_k = st.number_input("Choose the optimal number of clusters (k) from the elbow graph:", min_value=1, max_value=10, value=3)
 
-# Applying K-Means with optimal k
+# Applying K-Means Clustering
 kmeans = KMeans(n_clusters=optimal_k, random_state=42)
-df_cleaned['Cluster'] = kmeans.fit_predict(numeric_data)  # Use numeric data for clustering
+df_cleaned['Cluster'] = kmeans.fit_predict(numeric_data)
 
 # Plotting the clusters
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(10, 6))
 for i in range(optimal_k):
     cluster_data = df_cleaned[df_cleaned['Cluster'] == i]
     plt.scatter(cluster_data['Max Altitude'], cluster_data['Cost'], label=f'Cluster {i}')
 
-plt.title(f"K-Means Clustering with {optimal_k} Clusters")
-plt.xlabel("Max Altitude")
-plt.ylabel("Cost")
-plt.legend()  # Use legend() to show which cluster is which
+plt.title(f'K-Means Clustering (k={optimal_k})')
+plt.xlabel('Max Altitude')
+plt.ylabel('Cost')
+plt.legend()
+plt.grid(True)
 st.pyplot(plt)
 
-# User input for trekking recommendations
-st.write("### Find Your Perfect Trekking Adventure!")
-user_budget = st.number_input("Enter your budget (less than or equal to $4000):", min_value=0.0, max_value=4000.0)
+#bar graph
+st.header("Fitness Level Distribution by Age")
+# Define age categories
+bins = [0, 5, 10, 15, 20, 25, 30, 35, 40]
+labels = ['0-5', '6-10', '11-15', '16-20', '21-25', '26-30', '31-35', '36-40']
+df_cleaned['Age Category'] = pd.cut(df_cleaned['Age'], bins=bins, labels=labels, right=False)
 
-# Filter the dataset based on user input
-if user_budget:
-    recommended_treks = trekking_data[trekking_data['Cost'].replace({'\n': '', 'USD': '', '\$': '', ',': ''}, regex=True).astype(float) <= user_budget]
-    
-    # Ensure 'Fitness Level' is filled properly before display
-    if 'Fitness Level' in recommended_treks.columns:
-        recommended_treks['Fitness Level'] = recommended_treks['Fitness Level'].fillna(mean_fitness_category)  # Fill with mean category
+# Create a DataFrame for counts of fitness levels by age category
+fitness_distribution = df_cleaned.groupby(['Age Category', 'Fitness Level']).size().unstack(fill_value=0)
 
-        # Only transform if the values are in the original encoding
-        unseen_labels = set(recommended_treks['Fitness Level']) - set(label_enc.classes_)
-        if not unseen_labels:  # Only transform if there are no unseen labels
-            recommended_treks['Fitness Level'] = label_enc.transform(recommended_treks['Fitness Level'])
+# Plotting the bar graph
+plt.figure(figsize=(10, 6))
+fitness_distribution.plot(kind='bar', stacked=True)
 
-    # Display recommended treks
-    if not recommended_treks.empty:
-        st.write("#### Recommended Treks for Your Budget:")
-        st.dataframe(recommended_treks[['Trek', 'Cost', 'Max Altitude', 'Accommodation', 'Fitness Level', 'Best Travel Time']].head(10))  # Show only the first 10 options
+plt.title('Fitness Level Distribution by Age Categories')
+plt.xlabel('Age Categories')
+plt.ylabel('Count of Fitness Levels')
+plt.xticks(rotation=0)
+plt.legend(title='Fitness Level')
+plt.tight_layout()
+
+# Display the plot in Streamlit
+st.pyplot(plt)
+
+# User Input for Trek Recommendation
+st.header("Find Your Perfect Trekking Adventure!")
+
+fitness_level = st.selectbox("Select Fitness Level:", options=['Beginner', 'Intermediate', 'Advanced'])
+cost_input = st.number_input("Enter your budget (in $)", step=100)
+
+# Filtering the dataset based on user input
+if st.button("Get Recommendations"):
+    if cost_input <= 449:
+        st.warning("No treks available under this budget.")
     else:
-        st.write("No trekking options available within your budget.")
-else:
-    st.write("Please enter a budget to see recommendations.")
+        fitness_level_encoded = label_enc.transform([fitness_level])[0]
+        
+        recommendations = df_cleaned[
+            (df_cleaned['Fitness Level'] == fitness_level_encoded) &
+            (df_cleaned['Cost'] <= cost_input)
+        ]
+        
+        # Limit to first 10 matches and format output
+        if not recommendations.empty:
+            # Show only the required columns with formatted values
+            recommendations_display = recommendations[['Trek', 'Cost', 'Max Altitude', 'Accommodation', 'Fitness Level', 'Best Travel Time', 'Time']]
+            
+            # Display the original values instead of scaled values
+            recommendations_display['Max Altitude'] = trekking_data['Max Altitude'].iloc[recommendations.index].astype(str) 
+            recommendations_display['Cost'] = '$' + trekking_data['Cost'].iloc[recommendations.index].replace({'\$': '', 'USD': '', ',': ''}, regex=True) + ' USD'
+            recommendations_display['Fitness Level'] = label_enc.inverse_transform(recommendations_display['Fitness Level'].astype(int))
+
+            # Display the top 10 recommendations
+            st.subheader("Here are your Recommended Treks:")
+            st.dataframe(recommendations_display.head(10))  
+        else:
+            st.write("No treks found for your selection.")
 
 #Checking Latency 
 
@@ -253,14 +278,14 @@ end_time_preprocessing = time.time()
 data_preprocessing_latency = end_time_preprocessing - start_time_preprocessing
 
 
-start_time = time.time()  # Start time for training
+start_time = time.time()  
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
-train_time = time.time() - start_time  # Time taken for training
+train_time = time.time() - start_time 
 
-start_time = time.time()  # Start time for predictions
+start_time = time.time()  
 y_pred = model.predict(X_test)
-predict_time = time.time() - start_time  # Time taken for predictions
+predict_time = time.time() - start_time 
 st.write("### Checking Model Latency")
 st.write(f"**Data Loading Latency:** {data_loading_latency:.6f} seconds")
 st.write(f"**Data Preprocessing Latency:** {data_preprocessing_latency:.6f} seconds")
